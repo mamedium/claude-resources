@@ -129,6 +129,71 @@ EOF
   fi
 fi
 
+# daily config setup
+if printf '%s\n' "${SELECTED[@]}" | grep -qx "daily"; then
+  CONFIG_FILE="$CONFIG_DIR/daily.yaml"
+
+  if [[ -f "$CONFIG_FILE" ]]; then
+    echo "daily config already exists at $CONFIG_FILE"
+    read -rp "Overwrite? (y/N): " OVERWRITE
+    if [[ "$OVERWRITE" != "y" && "$OVERWRITE" != "Y" ]]; then
+      echo "Keeping existing config."
+    else
+      rm "$CONFIG_FILE"
+    fi
+  fi
+
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo ""
+    echo "Setting up daily config..."
+    echo "This skill needs your Slack IDs and channel IDs to monitor activity."
+    echo ""
+
+    read -rp "Your name (for Slack searches): " DAILY_NAME
+    read -rp "Your Slack user ID (e.g. UXXXXXXXXXX): " DAILY_SLACK_ID
+    read -rp "Geekbot DM channel ID (e.g. DXXXXXXXXXX): " DAILY_GEEKBOT_DM
+    read -rp "Geekbot bot user ID (e.g. UXXXXXXXXXX): " DAILY_GEEKBOT_UID
+
+    echo ""
+    echo "Slack channels to monitor (enter channel IDs, or leave blank to skip):"
+    read -rp "  Tech channel ID: " CH_TECH
+    read -rp "  Bugs channel ID: " CH_BUGS
+    read -rp "  Reported calls channel ID: " CH_CALLS
+    read -rp "  Tech dev channel ID: " CH_TECHDEV
+    read -rp "  Team channel ID: " CH_TEAM
+    read -rp "  Jira channel ID: " CH_JIRA
+
+    mkdir -p "$CONFIG_DIR"
+    cat > "$CONFIG_FILE" << EOF
+user_name: $DAILY_NAME
+user_slack_id: $DAILY_SLACK_ID
+
+geekbot_dm_channel: $DAILY_GEEKBOT_DM
+geekbot_user_id: $DAILY_GEEKBOT_UID
+
+channels:
+  tech: $CH_TECH
+  bugs: $CH_BUGS
+  reported_calls: $CH_CALLS
+  tech_dev: $CH_TECHDEV
+  team: $CH_TEAM
+  jira: $CH_JIRA
+
+# Edit these templates manually after setup
+chores_template:
+  - Item 1
+  - Item 2
+
+personal_template:
+  - Exercise
+  - Read
+EOF
+
+    echo -e "${GREEN}Config written to $CONFIG_FILE${NC}"
+    echo -e "${YELLOW}Edit $CONFIG_FILE to customize chores_template and personal_template.${NC}"
+  fi
+fi
+
 echo ""
 echo "Setup complete!"
 echo ""

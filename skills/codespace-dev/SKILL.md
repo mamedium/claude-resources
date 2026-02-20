@@ -48,7 +48,7 @@ EOF
 ### Config format
 
 ```yaml
-codespace_name: redesigned-space-engine-rpgwv9p74qv2xp9j
+codespace_name: your-codespace-name-here
 repo_dir: /workspaces/monorepo
 default_app: dashboard
 apps:

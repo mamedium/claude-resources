@@ -19,6 +19,58 @@ allowed-tools:
 
 You are running the daily note review workflow. Follow these four phases exactly.
 
+## Configuration
+
+This skill reads its config from `~/.config/claude-resources/daily.yaml`.
+
+### On startup, ALWAYS read the config file first:
+
+```bash
+cat ~/.config/claude-resources/daily.yaml
+```
+
+If the file does not exist, report an error and stop:
+
+```
+Error: Config file missing at ~/.config/claude-resources/daily.yaml
+Run setup.sh from the claude-resources repo to configure, or create the file manually.
+```
+
+### Config format
+
+```yaml
+# Your identity
+user_name: Your Name
+user_slack_id: UXXXXXXXXXX
+
+# Geekbot
+geekbot_dm_channel: DXXXXXXXXXX
+geekbot_user_id: UXXXXXXXXXX
+
+# Slack channels to monitor
+channels:
+  tech: CXXXXXXXXXX
+  bugs: CXXXXXXXXXX
+  reported_calls: CXXXXXXXXXX
+  tech_dev: CXXXXXXXXXX
+  team: CXXXXXXXXXX
+  jira: CXXXXXXXXXX
+
+# Daily note templates
+chores_template:
+  - Chore item 1
+  - Chore item 2
+
+personal_template:
+  - Exercise
+  - Read
+  - Course
+    - Sub-course 1
+    - Sub-course 2
+```
+
+Use these values throughout the skill wherever you see `USER_NAME`, `USER_SLACK_ID`, channel names, or template content.
+
 ---
 
 ## Phase 1: REVIEW — Find Latest Note & Gather Context
@@ -40,8 +92,8 @@ You are running the daily note review workflow. Follow these four phases exactly
 Attempt to pull context from Slack. If any Slack call fails, set a flag `slackAvailable = false` and skip to the fallback in Step 1.3.
 
 **Geekbot DM pull:**
-1. Read channel `D08N3GD3WLV` with `limit: 30`.
-2. Find the most recent bot message (from user `U08NUBVA96C`) that contains "Daily Standup".
+1. Read the `geekbot_dm_channel` from config with `limit: 30`.
+2. Find the most recent bot message (from `geekbot_user_id`) that contains "Daily Standup".
 3. Parse the sequential Q&A that follows in the thread or channel:
    - The user message immediately after "What have you done since yesterday?" = **Done** list
    - The user message after "What will you do today?" = **Today** list
@@ -53,31 +105,26 @@ Attempt to pull context from Slack. If any Slack call fails, set a flag `slackAv
 
 Use BOTH approaches to avoid missing activity:
 
-**A. Read full channel history for the day** using `slack_read_channel` with `oldest` set to start-of-day Unix timestamp:
-   - `#tech` (`C07J3BC98P2`) — main work channel, PRs shared here
-   - `#bugs-product-inbox` (`C07RP9MACAW`) — bug reports and investigations
-   - `#inbox-reported-calls` (`C08T3FJ95BJ`) — reported call issues
-   - `#tech-development` (`C07BXRX0K8T`) — GitHub bot posts PR activity here (merges, reviews, deploys)
-   - `#team-product-and-tech` (`C08FK4QKEF9`) — cross-team discussions
+**A. Read full channel history for the day** using `slack_read_channel` with `oldest` set to start-of-day Unix timestamp. Read each channel listed in the `channels` config section.
 
-**B. Search for Mamed's messages and mentions** across all channels:
-   - `from:<@U08E8HSLC4Q> on:{daily-note-date}` — messages Mamed sent today
-   - `<@U08E8HSLC4Q> on:{daily-note-date}` — messages mentioning/tagging Mamed today
+**B. Search for the user's messages and mentions** across all channels:
+   - `from:<@USER_SLACK_ID> on:{daily-note-date}` — messages the user sent today
+   - `<@USER_SLACK_ID> on:{daily-note-date}` — messages mentioning/tagging the user today
 
 **C. Read threads for full context:**
-   - For any message in #tech or #bugs-product-inbox where Mamed participated (sent a message or was tagged), read the full thread using `slack_read_thread` to understand if work was completed, PR was approved, issue was resolved, etc.
+   - For any message in tech or bugs channels where the user participated (sent a message or was tagged), read the full thread using `slack_read_thread` to understand if work was completed, PR was approved, issue was resolved, etc.
    - Look for completion signals: "fixed", "deployed", "merged", "approved", PR links, Jira ticket transitions
 
 **D. Search Jira activity:**
-   - Search `Mamed` in `#jira` (`C08P0CTKHCN`) or in bot messages with `transitioned`, `created`, or `assigned` to detect ticket status changes
+   - Search `USER_NAME` in the jira channel or in bot messages with `transitioned`, `created`, or `assigned` to detect ticket status changes
 
 3. Extract meaningful work activities: PR submissions, bug investigations, technical discussions, code reviews, hotfixes, deployments.
 4. Ignore casual messages (greetings, reactions, short acknowledgments).
 5. Store as `slackActivities` — a list of `{ description, channel, confidence }`.
 
 **Cross-reference with daily note items:**
-- **Tier 1 (high confidence):** Match `SAI-XXXX` IDs between daily note unchecked items and Slack messages/Geekbot Done list.
-- **Tier 2 (medium confidence):** Keyword/semantic matching for items without SAI IDs.
+- **Tier 1 (high confidence):** Match ticket IDs (e.g. `SAI-XXXX`) between daily note unchecked items and Slack messages/Geekbot Done list.
+- **Tier 2 (medium confidence):** Keyword/semantic matching for items without ticket IDs.
 - Categorize each unchecked item as: `completed` (evidence found), `still_open` (no evidence), or `new` (in Slack but not in daily note).
 
 ### Step 1.3: Work Item Review (Slack-Aware)
@@ -90,15 +137,15 @@ Present a pre-filled summary to the user. Include items from BOTH Work and Backl
 Based on your Slack activity:
 
 COMPLETED (evidence found):
-  [x] SAI-2088 Iframe chatbot (Geekbot "Done")
-  [x] Investigated Import Customer issue (#tech discussion)
+  [x] TICKET-123 Some task (Geekbot "Done")
+  [x] Investigated some issue (#tech discussion)
 
 STILL OPEN (no evidence):
   [ ] improve key points and summary generation
-  [ ] Epic monorepo-dqs: Add orgId to Axiom structured logs
+  [ ] Some other task
 
 NEW ACTIVITY (not in daily note):
-  + SAI-2120 Fix microphone issue (#tech PR)
+  + TICKET-456 Fix something (#tech PR)
 
 Is this correct? Reply with adjustments or "yes" to confirm.
 ```
@@ -107,7 +154,7 @@ Is this correct? Reply with adjustments or "yes" to confirm.
 - If user provides corrections → apply them.
 - NEW ACTIVITY items confirmed by user are added to the completed list.
 - User can say "remove [item]" to delete items from the daily note entirely (won't carry over).
-- User can provide progress updates on still-open items (e.g., "SAI-2089: adding more P1 test cases").
+- User can provide progress updates on still-open items.
 
 **Fallback — if `slackAvailable = false` or no Slack evidence found at all:**
 
@@ -195,14 +242,14 @@ Use the Geekbot three-question format. **Follow these standup style rules:**
   - Do NOT include PR reviews/approvals (these are routine, not standup-worthy)
   - Do NOT include "created ticket" or "shared pricing" — only actual dev progress
   - Be careful about which day work was done. If something was investigated yesterday and you only followed up today, say "followed up" not "investigated"
-  - For ongoing tasks, describe the dev progress (e.g., "done enabling MMS in dashboard, need to implement in admin") not the admin work around it
+  - For ongoing tasks, describe the dev progress (e.g., "done enabling feature X, need to implement in admin") not the admin work around it
 - **Today:** List planned development tasks
 - **Blockers:** Be specific and technical
 
 ```
 ### Standup
 **Done:**
-{list completed work items — dev work focus, preserve SAI-XXXX task IDs}
+{list completed work items — dev work focus, preserve ticket IDs}
 
 **Today:**
 {items from the user's tomorrow planning response}
@@ -218,13 +265,7 @@ If no work items were completed, put "none" under Done.
 Apply these rules for each section:
 
 **Chores** — FRESH template (always reset):
-```
-### Chores
-- [ ] Malto
-- [ ] Vit D
-- [ ] Murojaah
-- [ ] Talaqqi
-```
+Use the `chores_template` from the config file to generate the chores section with unchecked checkboxes.
 
 **Work** — CARRY OVER unchecked items + append new plans:
 1. Copy all unchecked (`- [ ]`) top-level Work items with their full subtask trees and any annotations (WIP, links, etc.). Preserve tab indentation exactly.
@@ -237,25 +278,7 @@ Apply these rules for each section:
 3. If the Backlog section becomes empty, still include the heading.
 
 **Personal** — FRESH template (always reset):
-```
-### Personal
-- [ ] Prep Hlqoh
-- [ ] Exercise
-- [ ] Measure weight
-- [ ] Read quran
-- [ ] Intermittent Fasting
-- [ ] Shadowing
-- [ ] Course
-	- [ ] Managing SE Career
-	- [ ] DSA
-	- [ ] [Optional] Senior Web Dev Course
-- [ ] Supplements
-	- [ ] TA
-	- [ ] Allo
-	- [ ] Magnesium
-	- [ ] Habattusauda
-	- [ ] Creatine (hold this for now)
-```
+Use the `personal_template` from the config file to generate the personal section with unchecked checkboxes. Preserve nested items with tab indentation.
 
 **House Work** — CARRY OVER unchecked items:
 1. Copy all unchecked top-level House Work items with their full subtask trees.
@@ -298,29 +321,25 @@ Then proceed to Phase 3.6 for outstanding issues, then Phase 4 for Geekbot.
 
 ### Step 3.6: Outstanding Issues Summary
 
-Search for unresolved mentions — messages where someone tagged `<@U08E8HSLC4Q>` (Mamed) but Mamed hasn't replied or given an update yet.
+Search for unresolved mentions — messages where someone tagged the user (via `USER_SLACK_ID`) but the user hasn't replied or given an update yet.
 
 **How to detect:**
-1. Search `<@U08E8HSLC4Q>` in each monitored channel with `after` set to 3 days ago (to catch recent but not ancient items):
-   - `#tech` (`C07J3BC98P2`)
-   - `#bugs-product-inbox` (`C07RP9MACAW`)
-   - `#inbox-reported-calls` (`C08T3FJ95BJ`)
-   - `#team-product-and-tech` (`C08FK4QKEF9`)
-2. For each message that mentions Mamed, check the thread replies (if any) or subsequent messages in the channel.
+1. Search `<@USER_SLACK_ID>` in each monitored channel from the config with `after` set to 3 days ago (to catch recent but not ancient items).
+2. For each message that mentions the user, check the thread replies (if any) or subsequent messages in the channel.
 3. An issue is **outstanding** if:
-   - Mamed was mentioned/tagged
-   - Mamed has NOT replied in that thread or within a reasonable window after the message
+   - The user was mentioned/tagged
+   - The user has NOT replied in that thread or within a reasonable window after the message
    - The message asks a question, requests action, reports a bug, or assigns a task
 4. An issue is **NOT outstanding** if:
-   - Mamed already replied or acknowledged
+   - The user already replied or acknowledged
    - Someone else resolved it
    - It's just an FYI/notification that doesn't need a response (e.g., PR approval notifications, Jira bot assignments)
 
 **Present to user:**
 ```
 OUTSTANDING ISSUES (need your attention):
-  1. #bugs-product-inbox — Jake reported calendar overlap issue, Dody is fixing but tagged you for review (2 days ago)
-  2. #team-product-and-tech — Derek asked about feature prioritization, no reply yet (1 day ago)
+  1. #channel-name — Someone reported an issue, tagged you for review (2 days ago)
+  2. #channel-name — Someone asked about something, no reply yet (1 day ago)
 
 No outstanding issues found. (if none)
 ```
@@ -334,8 +353,8 @@ If there are outstanding items, ask: **"Want to address any of these now, or jus
 
 ### Step 4.1: Check if Geekbot is waiting for a report
 
-1. Read channel `D08N3GD3WLV` (Geekbot DM) with `limit: 5`.
-2. Check the most recent message from Geekbot (`U08NUBVA96C`).
+1. Read the `geekbot_dm_channel` from config with `limit: 5`.
+2. Check the most recent message from the `geekbot_user_id`.
 3. **Proceed only if** the most recent Geekbot message is from today AND contains "Daily Standup" or one of the standup questions ("What have you done", "What will you do today", "Anything blocking").
 4. If the most recent Geekbot message already says "Good job!" or similar completion → standup already submitted. Tell user: **"Your Geekbot standup is already posted — no need to copy it manually."** Skip this phase.
 5. If no Geekbot message from today → standup not triggered yet. Tell user: **"Geekbot hasn't asked for your standup yet today."** Skip this phase.
@@ -354,7 +373,7 @@ Use the **Standup** section from the newly generated daily note file as the sour
 
 **Reply flow (one message at a time):**
 
-1. **Done reply:** Send the items under `**Done:**` from the standup section to channel `D08N3GD3WLV`. Format as bullet points with `•` prefix (matching the user's usual Geekbot style). Wait ~3 seconds, then re-read the channel to get Geekbot's next question.
+1. **Done reply:** Send the items under `**Done:**` from the standup section to the `geekbot_dm_channel`. Format as bullet points with `•` prefix (matching the user's usual Geekbot style). Wait ~3 seconds, then re-read the channel to get Geekbot's next question.
 
 2. **Today reply:** Send the items under `**Today:**` from the standup section. Format as bullet points with `•` prefix. Wait ~3 seconds, then re-read the channel.
 
