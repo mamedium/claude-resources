@@ -1,45 +1,49 @@
 # claude-resources
 
-Personal Claude Code skills, centralized with version control.
+Personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills — version-controlled and symlinked into `~/.claude/skills/`.
 
-## Skills
+## 📦 Skills
 
-| Skill | Description |
-|-------|-------------|
-| `codespace-dev` | Start, stop, or sync dev servers on a GitHub Codespace. Config-driven via yaml. |
-| `daily` | Daily note review, update, and next-day generation with Slack integration. |
-| `generate-beads` | Generate OpenSpec proposals and Beads issues from approved Claude plans. |
+| Skill | Trigger | What it does |
+|-------|---------|-------------|
+| **codespace-dev** | `/codespace-dev` | Start, stop, or sync dev servers on a GitHub Codespace. Reads config from a yaml file — no hardcoded values. |
+| **daily** | `/daily` | Reviews your daily note, gathers Slack context, updates checkboxes, generates tomorrow's file, and optionally posts to Geekbot. |
+| **generate-beads** | `/generate-beads` | Turns an approved Claude plan into OpenSpec proposals and Beads issues with full cross-referencing. |
 
-## Setup
+## 🚀 Quick Start
 
 ```bash
+git clone git@github.com:mamedium/claude-resources.git
+cd claude-resources
 ./setup.sh
 ```
 
-The script will:
-1. List available skills
-2. Let you pick which to install (default: all)
-3. Create symlinks from `~/.claude/skills/{name}` to this repo
-4. If `codespace-dev` is selected, prompt for config values and write `~/.config/claude-resources/codespace-dev.yaml`
+The setup script will:
 
-## Uninstall
+1. Show available skills and let you pick which to install
+2. Create symlinks from `~/.claude/skills/{name}` → this repo
+3. For `codespace-dev`, auto-detect your codespace and write the config
+
+Then start a new Claude Code session — your skills are ready to use.
+
+## 🗑️ Uninstall
 
 ```bash
 ./uninstall.sh
 ```
 
-Removes symlinks from `~/.claude/skills/` that point to this repo. Optionally removes the config directory.
+Removes symlinks pointing to this repo and optionally cleans up `~/.config/claude-resources/`.
 
 ## Structure
 
 ```
 skills/
 ├── codespace-dev/
-│   └── SKILL.md        # reads config from ~/.config/claude-resources/codespace-dev.yaml
+│   └── SKILL.md          # config: ~/.config/claude-resources/codespace-dev.yaml
 ├── daily/
 │   └── SKILL.md
 └── generate-beads/
     └── SKILL.md
-setup.sh                # interactive installer
-uninstall.sh            # cleanup
+setup.sh                  # interactive installer
+uninstall.sh              # cleanup
 ```
