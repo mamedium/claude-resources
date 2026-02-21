@@ -8,7 +8,7 @@ Personal Claude Code skills and configuration, centralized with version control.
   - `codespace-dev/` — Manage dev servers on GitHub Codespaces (config-driven via yaml)
   - `daily/` — Daily note review, update, and next-day generation
   - `generate-beads/` — Generate OpenSpec proposals and Beads issues from approved plans
-  - `pr-review-respond/` — Respond to bot review comments on PRs
+  - `pr-review-respond/` — Respond to review comments (human and bot) on PRs
   - `slack-chat-to-jira/` — Convert Slack conversations into Jira tickets
 - `commands/` — Claude Code slash commands
   - `new-worktree.md` — Create git worktree from Jira issue key

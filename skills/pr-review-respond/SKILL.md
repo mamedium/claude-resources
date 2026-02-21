@@ -1,6 +1,6 @@
 ---
 name: pr-review-respond
-description: Respond to bot review comments on the current PR, resolve threads where fixes have been applied, and trigger a new Codex review. Use when the user wants to address PR review comments, resolve bot feedback, or request a fresh review.
+description: Respond to review comments on the current PR, resolve threads where fixes have been applied, and trigger a new Codex review. Use when the user wants to address PR review comments, resolve feedback, or request a fresh review.
 allowed-tools:
   - Bash
   - Read
@@ -10,12 +10,12 @@ allowed-tools:
 
 # PR Review Respond Skill
 
-This skill finds bot review comments on the current branch's PR, replies to them with context about applied fixes, resolves addressed threads, and triggers a new `@codex review`.
+This skill finds review comments on the current branch's PR (from any reviewer — human or bot), replies to them with context about applied fixes, resolves addressed threads, and triggers a new `@codex review`.
 
 ## What This Skill Does
 
 1. **Finds the PR** for the current branch
-2. **Fetches all review comments** from bot reviewers
+2. **Fetches all review comments** (from all reviewers)
 3. **Identifies unresolved threads** that have been addressed by recent commits
 4. **Replies to each comment** explaining what was fixed and referencing the commit
 5. **Resolves the thread** via the GraphQL API
@@ -44,6 +44,8 @@ gh api repos/{owner}/{repo}/pulls/{pr_number}/comments \
 ```
 
 Filter to **top-level comments only** (where `in_reply_to_id` is null) — these are the original review comments, not replies.
+
+Include comments from **all reviewers** — both human team members and bots.
 
 ### Step 3: Get Unresolved Threads
 
@@ -74,7 +76,7 @@ Match threads to comments by `databaseId` to find unresolved ones.
 
 ### Step 4: Analyze Each Unresolved Comment
 
-For each unresolved bot comment:
+For each unresolved comment:
 
 1. **Read the referenced file** at the mentioned line to understand current state
 2. **Check recent commits** to find if/how the issue was addressed:
@@ -150,5 +152,5 @@ Triggered `@codex review` for a fresh review.
 2. **Reference specific commits** — Always include the commit hash in replies so reviewers can verify
 3. **Be concise in replies** — One or two sentences explaining the fix is sufficient
 4. **Detect the repo owner/name dynamically** — Use `gh repo view --json owner,name`
-5. **Handle bot detection broadly** — Look for `[bot]` suffix in author login, or common bot names like `chatgpt-codex-connector[bot]`, `github-actions[bot]`, etc.
+5. **Handle all reviewers** — Process comments from both human reviewers and bots (e.g., `chatgpt-codex-connector[bot]`, `github-actions[bot]`)
 6. **Skip already-resolved threads** — Don't reply to threads that are already resolved
