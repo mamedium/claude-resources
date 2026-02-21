@@ -9,7 +9,7 @@ Personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills an
 | **codespace-dev** | `/codespace-dev` | Start, stop, or sync dev servers on a GitHub Codespace. Reads config from a yaml file — no hardcoded values. |
 | **daily** | `/daily` | Reviews your daily note, gathers Slack context (auto-detects your Slack identity via MCP), updates checkboxes, generates tomorrow's file, and optionally posts to Geekbot. |
 | **generate-beads** | `/generate-beads` | Turns an approved Claude plan into OpenSpec proposals and Beads issues with full cross-referencing. |
-| **pr-review-respond** | `/pr-review-respond` | Respond to bot review comments on the current PR, resolve threads, and trigger a new review. |
+| **pr-review-respond** | `/pr-review-respond` | Respond to review comments (human and bot) on the current PR, resolve threads, and trigger a new review. |
 | **slack-chat-to-jira** | `/slack-chat-to-jira` | Convert Slack conversations into well-structured Jira tickets with codebase investigation. |
 
 ## Commands
