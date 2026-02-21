@@ -7,7 +7,7 @@ Personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills an
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
 | **codespace-dev** | `/codespace-dev` | Start, stop, or sync dev servers on a GitHub Codespace. Reads config from a yaml file — no hardcoded values. |
-| **daily** | `/daily` | Reviews your daily note, gathers Slack context, updates checkboxes, generates tomorrow's file, and optionally posts to Geekbot. |
+| **daily** | `/daily` | Reviews your daily note, gathers Slack context (auto-detects your Slack identity via MCP), updates checkboxes, generates tomorrow's file, and optionally posts to Geekbot. |
 | **generate-beads** | `/generate-beads` | Turns an approved Claude plan into OpenSpec proposals and Beads issues with full cross-referencing. |
 | **pr-review-respond** | `/pr-review-respond` | Respond to bot review comments on the current PR, resolve threads, and trigger a new review. |
 | **slack-chat-to-jira** | `/slack-chat-to-jira` | Convert Slack conversations into well-structured Jira tickets with codebase investigation. |
@@ -37,7 +37,7 @@ The setup script will:
 2. Create symlinks from `~/.claude/skills/{name}` to this repo
 3. Symlink commands from `~/.claude/commands/` to this repo
 4. For `codespace-dev`, auto-detect your codespace and write the config
-5. For `daily`, prompt for Slack IDs and channel config
+5. For `daily`, prompt for channel config (Slack user identity is auto-detected at runtime via MCP)
 
 Then start a new Claude Code session — your skills and commands are ready to use.
 

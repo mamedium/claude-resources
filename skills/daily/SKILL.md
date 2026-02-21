@@ -13,6 +13,7 @@ allowed-tools:
   - mcp__claude_ai_Slack__slack_search_public
   - mcp__claude_ai_Slack__slack_send_message
   - mcp__claude_ai_Slack__slack_read_thread
+  - mcp__claude_ai_Slack__slack_read_user_profile
 ---
 
 # Daily Note Review Skill
@@ -23,7 +24,9 @@ You are running the daily note review workflow. Follow these four phases exactly
 
 This skill reads its config from `~/.config/claude-resources/daily.yaml`.
 
-### On startup, ALWAYS read the config file first:
+### On startup, ALWAYS do these two things:
+
+**1. Read the config file:**
 
 ```bash
 cat ~/.config/claude-resources/daily.yaml
@@ -36,13 +39,18 @@ Error: Config file missing at ~/.config/claude-resources/daily.yaml
 Run setup.sh from the claude-resources repo to configure, or create the file manually.
 ```
 
+**2. Auto-detect Slack identity:**
+
+Call `slack_read_user_profile` with NO arguments (defaults to current authenticated user) and `response_format: "concise"`.
+
+- Extract the **User ID** (e.g. `U07MRTS7CCC`) and **Real Name** from the response.
+- Use these as `USER_SLACK_ID` and `USER_NAME` throughout the skill.
+- These auto-detected values **override** any `user_slack_id` or `user_name` in the config file.
+- If the Slack call fails, fall back to the values in the config file. If those are also missing, report an error and stop.
+
 ### Config format
 
 ```yaml
-# Your identity
-user_name: Your Name
-user_slack_id: UXXXXXXXXXX
-
 # Geekbot
 geekbot_dm_channel: DXXXXXXXXXX
 geekbot_user_id: UXXXXXXXXXX
@@ -68,6 +76,8 @@ personal_template:
     - Sub-course 1
     - Sub-course 2
 ```
+
+Note: `user_name` and `user_slack_id` are optional in the config — they are auto-detected from Slack MCP. If present, they serve as fallback values only.
 
 Use these values throughout the skill wherever you see `USER_NAME`, `USER_SLACK_ID`, channel names, or template content.
 
