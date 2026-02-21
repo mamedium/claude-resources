@@ -11,14 +11,13 @@ Personal [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills an
 | **generate-beads** | `/generate-beads` | Turns an approved Claude plan into OpenSpec proposals and Beads issues with full cross-referencing. |
 | **pr-review-respond** | `/pr-review-respond` | Respond to bot review comments on the current PR, resolve threads, and trigger a new review. |
 | **slack-chat-to-jira** | `/slack-chat-to-jira` | Convert Slack conversations into well-structured Jira tickets with codebase investigation. |
-| **sync-to-main** | `/sync-to-main` | Copy skills, commands, and openspec files from a worktree back to the main repo. |
 
 ## Commands
 
 | Command | Trigger | What it does |
 |---------|---------|-------------|
 | **new-worktree** | `/new-worktree` | Create a git worktree and branch from a Jira issue key. |
-| **setup-worktree** | `/setup-worktree` | Copy project config files (AGENTS.md, CLAUDE.local.md, etc.) into a worktree. |
+| **sync-worktree** | `/sync-worktree` | Sync config files and MCP servers between a worktree and main (either direction). |
 | **openspec/proposal** | `/openspec:proposal` | Create OpenSpec proposal documents. |
 | **openspec/apply** | `/openspec:apply` | Apply OpenSpec changes to the codebase. |
 | **openspec/archive** | `/openspec:archive` | Archive completed OpenSpec documents. |
@@ -64,11 +63,9 @@ skills/
 ├── slack-chat-to-jira/
 │   ├── SKILL.md
 │   └── TEMPLATES.md
-└── sync-to-main/
-    └── SKILL.md
 commands/
 ├── new-worktree.md
-├── setup-worktree.md
+├── sync-worktree.md
 └── openspec/
     ├── proposal.md
     ├── apply.md

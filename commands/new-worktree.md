@@ -38,7 +38,7 @@ Create a new git worktree with a branch named after a Jira issue key, then set i
    If the branch already exists, ask the user whether to use the existing branch or pick a new name.
    If the worktree path already exists, warn the user and stop.
 
-4. **Copy config files (setup-worktree)**
+4. **Copy config files**
 
    Copy these from the main worktree to the new worktree, skipping any that don't exist:
    ```bash
