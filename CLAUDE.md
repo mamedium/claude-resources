@@ -10,10 +10,9 @@ Personal Claude Code skills and configuration, centralized with version control.
   - `generate-beads/` — Generate OpenSpec proposals and Beads issues from approved plans
   - `pr-review-respond/` — Respond to bot review comments on PRs
   - `slack-chat-to-jira/` — Convert Slack conversations into Jira tickets
-  - `sync-to-main/` — Copy skills/commands/openspec from worktree to main repo
 - `commands/` — Claude Code slash commands
   - `new-worktree.md` — Create git worktree from Jira issue key
-  - `setup-worktree.md` — Copy project config files into worktree
+  - `sync-worktree.md` — Sync config files and MCP servers between worktree and main (either direction)
   - `openspec/` — OpenSpec proposal, apply, and archive commands
 - `setup.sh` — Interactive installer: picks skills, symlinks skills and commands to `~/.claude/`
 - `uninstall.sh` — Removes symlinks and optionally config
