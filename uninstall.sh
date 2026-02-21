@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
+COMMANDS_DIR="$HOME/.claude/commands"
 CONFIG_DIR="$HOME/.config/claude-resources"
 
 GREEN='\033[0;32m'
@@ -30,9 +31,30 @@ if [[ -d "$SKILLS_DIR" ]]; then
 fi
 
 if [[ $REMOVED -eq 0 ]]; then
-  echo "No symlinks pointing to this repo found."
+  echo "No skill symlinks pointing to this repo found."
 else
-  echo -e "${GREEN}Removed $REMOVED symlink(s).${NC}"
+  echo -e "${GREEN}Removed $REMOVED skill symlink(s).${NC}"
+fi
+
+# Remove command symlinks that point to this repo
+REMOVED_CMD=0
+if [[ -d "$COMMANDS_DIR" ]]; then
+  for link in "$COMMANDS_DIR"/*; do
+    if [[ -L "$link" ]]; then
+      target="$(readlink "$link")"
+      if [[ "$target" == "$REPO_DIR/commands/"* ]]; then
+        echo -e "${YELLOW}Removing symlink: $link -> $target${NC}"
+        rm "$link"
+        REMOVED_CMD=$((REMOVED_CMD + 1))
+      fi
+    fi
+  done
+fi
+
+if [[ $REMOVED_CMD -eq 0 ]]; then
+  echo "No command symlinks pointing to this repo found."
+else
+  echo -e "${GREEN}Removed $REMOVED_CMD command symlink(s).${NC}"
 fi
 
 echo ""

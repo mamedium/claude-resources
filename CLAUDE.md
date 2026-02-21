@@ -8,11 +8,18 @@ Personal Claude Code skills and configuration, centralized with version control.
   - `codespace-dev/` — Manage dev servers on GitHub Codespaces (config-driven via yaml)
   - `daily/` — Daily note review, update, and next-day generation
   - `generate-beads/` — Generate OpenSpec proposals and Beads issues from approved plans
-- `setup.sh` — Interactive installer: picks skills, creates symlinks to `~/.claude/skills/`
+  - `pr-review-respond/` — Respond to bot review comments on PRs
+  - `slack-chat-to-jira/` — Convert Slack conversations into Jira tickets
+  - `sync-to-main/` — Copy skills/commands/openspec from worktree to main repo
+- `commands/` — Claude Code slash commands
+  - `new-worktree.md` — Create git worktree from Jira issue key
+  - `setup-worktree.md` — Copy project config files into worktree
+  - `openspec/` — OpenSpec proposal, apply, and archive commands
+- `setup.sh` — Interactive installer: picks skills, symlinks skills and commands to `~/.claude/`
 - `uninstall.sh` — Removes symlinks and optionally config
 
 ## How it works
 
-Skills are symlinked from `~/.claude/skills/{name}` to this repo. Run `setup.sh` to install.
+Skills are symlinked from `~/.claude/skills/{name}` to this repo. Commands are symlinked from `~/.claude/commands/` to this repo. Run `setup.sh` to install.
 
 `codespace-dev` reads its configuration from `~/.config/claude-resources/codespace-dev.yaml` instead of hardcoding values. If the config file is missing, the skill prompts the user for values and writes it.
