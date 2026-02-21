@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
+COMMANDS_DIR="$HOME/.claude/commands"
 CONFIG_DIR="$HOME/.config/claude-resources"
 
 # Colors
@@ -69,6 +70,29 @@ for skill in "${SELECTED[@]}"; do
   ln -s "$source" "$target"
   echo -e "${GREEN}Linked: $target -> $source${NC}"
 done
+
+# Install commands
+if [[ -d "$REPO_DIR/commands" ]]; then
+  echo ""
+  echo "Installing commands..."
+  mkdir -p "$COMMANDS_DIR"
+
+  for item in "$REPO_DIR/commands"/*; do
+    name="$(basename "$item")"
+    target="$COMMANDS_DIR/$name"
+
+    if [[ -L "$target" ]]; then
+      echo -e "${YELLOW}Removing existing symlink: $target${NC}"
+      rm "$target"
+    elif [[ -e "$target" ]]; then
+      echo -e "${YELLOW}Removing existing: $target${NC}"
+      rm -rf "$target"
+    fi
+
+    ln -s "$item" "$target"
+    echo -e "${GREEN}Linked: $target -> $item${NC}"
+  done
+fi
 
 echo ""
 
@@ -201,5 +225,13 @@ echo "Installed skills:"
 for skill in "${SELECTED[@]}"; do
   echo "  - $skill -> $SKILLS_DIR/$skill"
 done
+if [[ -d "$REPO_DIR/commands" ]]; then
+  echo ""
+  echo "Installed commands:"
+  for item in "$REPO_DIR/commands"/*; do
+    name="$(basename "$item")"
+    echo "  - $name -> $COMMANDS_DIR/$name"
+  done
+fi
 echo ""
-echo "Start a new Claude Code session to use the skills."
+echo "Start a new Claude Code session to use the skills and commands."
