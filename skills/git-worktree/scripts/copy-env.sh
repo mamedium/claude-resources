@@ -39,6 +39,24 @@ for envfile in "$SOURCE_ROOT"/.env.*; do
     fi
 done
 
+# Copy per-app and per-package env files (e.g. apps/mobile/.env),
+# preserving their relative path inside the worktree. Root-level copy above is unchanged.
+# CUSTOMIZE: adjust the dir list to your monorepo layout.
+for dir in apps packages internal; do
+    for envfile in "$SOURCE_ROOT"/$dir/*/.env "$SOURCE_ROOT"/$dir/*/.env.*; do
+        # Guard against nullglob-style empties (unmatched globs stay literal).
+        [ -f "$envfile" ] || continue
+        filename=$(basename "$envfile")
+        # Skip example stubs (committed to git).
+        [[ "$filename" == *.example ]] && continue
+        relpath="${envfile#"$SOURCE_ROOT"/}"
+        mkdir -p "$WORKTREE_PATH/$(dirname "$relpath")"
+        cp "$envfile" "$WORKTREE_PATH/$relpath"
+        echo "Copied $relpath to $WORKTREE_PATH"
+        copied=$((copied + 1))
+    done
+done
+
 if [ $copied -eq 0 ]; then
     echo "No .env files found in $SOURCE_ROOT"
 else

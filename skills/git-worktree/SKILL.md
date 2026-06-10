@@ -34,6 +34,7 @@ Create or switch to a git worktree for branch: `$ARGUMENTS`
    scripts/copy-env.sh "<worktree-path>"
    ```
    Run this script from the skill's directory (Claude resolves the path automatically).
+   Per-app `.env` files are copied too (e.g. `apps/mobile/.env`), preserving their relative path.
 
    IMPORTANT: You cannot read .env files directly. You MUST use this script.
 
