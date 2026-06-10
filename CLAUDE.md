@@ -22,6 +22,7 @@ Public collection of Claude Code skills. All content must be safe for public rep
   - `review/` — Two-pass monorepo-aware code review
   - `sentry/` — Sentry error tracking and performance
   - `slack/` — Slack workspace interaction
+  - `solve-ticket/` — End-to-end ticket pipeline (analyse, plan, review gates, build, draft PR)
   - `stack-pr/` — Stacked PR workflows
   - `tdd-workflow/` — TDD RED-GREEN-REFACTOR cycle
   - `team-debate/` — Multi-agent structured debate

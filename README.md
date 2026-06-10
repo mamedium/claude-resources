@@ -1,6 +1,6 @@
 # 🧰 claude-resources
 
-A collection of 20 reusable [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills for real dev workflows - code review, stacked PRs, observability, project management, and more.
+A collection of 21 reusable [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills for real dev workflows - code review, stacked PRs, observability, project management, and more.
 
 > **What are skills?** Claude Code skills are reusable slash commands you install once and use in every session. Each skill is a prompt template that teaches Claude a specific workflow - no setup per session, no re-explaining, just `/review` and go. 🧠
 
@@ -27,7 +27,7 @@ Most skills only need Claude Code. Some need extra tools:
 
 | Dependency | Skills that need it | Install |
 |-----------|-------------------|---------|
-| GitHub CLI (`gh`) | review, hotfix, team-debate, codespace-dev | `brew install gh` |
+| GitHub CLI (`gh`) | review, hotfix, team-debate, codespace-dev, solve-ticket | `brew install gh` |
 | Graphite CLI (`gt`) | graphite | `brew install withgraphite/tap/graphite` |
 | Node.js | browser-test | `brew install node` |
 | pnpm | git-worktree | `npm i -g pnpm` |
@@ -43,6 +43,7 @@ Some skills also need **env vars** for API auth (noted per skill below).
 
 | Skill | Trigger | What it does |
 |-------|---------|-------------|
+| [solve-ticket](#-solve-ticket) | `/solve-ticket ENG-123` | End-to-end ticket pipeline: analyse, plan, review, build, review again |
 | [review](#-review) | `/review 493` | Two-pass code review: breadth agents find issues, depth agents validate |
 | [tdd-workflow](#-tdd-workflow) | `/tdd` | RED-GREEN-REFACTOR cycle with Vitest and pytest |
 | [team-debate](#%EF%B8%8F-team-debate) | `/team-debate` | Multi-agent structured debate for PR reviews or design decisions |
@@ -92,6 +93,21 @@ Some skills also need **env vars** for API auth (noted per skill below).
 ---
 
 ## 🔎 Skill Details
+
+### 🎫 solve-ticket
+
+> One ticket in, one draft PR out - with the root cause actually understood.
+
+A fixed delivery pipeline: deep-dive analysis (parallel exploration agents classify bug vs feature and find the in-codebase pattern to mirror), a TDD-shaped plan, a second-model review gate on the plan, autonomous execution with a writer + reviewer agent team, a second review gate on the generated code, then a dev smoke test + QA test plan and a draft PR. Each stage gates the next; review feedback is triaged accept/reject, never applied blindly.
+
+```bash
+/solve-ticket ENG-123                  # drive a tracked ticket end-to-end
+/solve-ticket "fix the flaky logout"   # or free-text, no ticket attached
+```
+
+**Requires:** `gh` · **Optional:** the `linear` + `git-worktree` skills, a second-model reviewer CLI (falls back to fresh-context reviewer agents)
+
+---
 
 ### 🔍 review
 
