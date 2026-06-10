@@ -156,7 +156,12 @@ If `pnpm install` fails with lockfile issues, inform the user and suggest runnin
 
 First, check if the app has a root-level script (`pnpm dev:APP`). If not (e.g., `background-worker`), run `pnpm dev` directly from the app directory.
 
-**Prefer `dev:APP:clean` variants** (e.g., `pnpm dev:dashboard:clean`) when available. These clear the Turbopack/Next.js cache before starting, which avoids stale cache issues that cause extremely slow first-page compilations on codespaces. Only fall back to `pnpm dev:APP` if no `:clean` variant exists.
+**Prefer `dev:APP:clean` variants** (e.g., `pnpm dev:dashboard:clean`) when available. These `rm -rf` the app's `.next` before starting, which avoids two recurring problems on codespaces:
+
+1. **Stale Turbopack cache** causing extremely slow first-page compilations and repeated `Finished filesystem cache database compaction` log spam.
+2. **`.next` corruption** from killed/orphaned dev servers, branch switches, or panics — symptoms range from "is another instance running?" lock errors to silent module-resolution failures.
+
+Empirically, plain `next dev` runs on a codespace get into broken `.next` states often enough that `:clean` is worth the ~30-60s cold compile every start. Only fall back to `pnpm dev:APP` (no `:clean`) if no `:clean` variant exists, or to direct `pnpm with-env next dev` if turbo daemon itself is failing to initialise (see troubleshooting below).
 
 **Important:** `nohup` via SSH loses the working directory (defaults to `$HOME`). Always use `bash -l -c "cd /path && nohup ... & disown"` pattern:
 
@@ -198,6 +203,56 @@ Tell the user the app is available at `http://localhost:PORT`.
 
 **Note:** Not all apps need port forwarding. Apps that connect to external services (e.g., a background worker connecting to a third-party API) don't expose a local HTTP server and don't need port forwarding.
 
+#### Step 5b: Start port-forward watchdog (mandatory when forwarding)
+
+The `gh codespace ports forward` tunnel dies silently — process disappears with no exit code, no log line, even when the codespace stays `Available`. Without a watchdog, the user hits "site unreachable" mid-test and you have to restart the forward manually. Always start the watchdog after any port forward.
+
+Write the watchdog script once (idempotent — overwrites are fine):
+
+```bash
+cat > /tmp/codespace-port-watchdog.sh << 'WATCHDOG_EOF'
+#!/usr/bin/env bash
+# Watchdog: keeps `gh codespace ports forward` alive.
+set -u
+CODESPACE="${1:-}"
+PORT="${2:-3000}"
+LOG="/tmp/codespace-port-watchdog.log"
+INTERVAL="${INTERVAL:-15}"
+
+if [[ -z "$CODESPACE" ]]; then
+  echo "usage: $0 <codespace-name> [port]" >&2
+  exit 1
+fi
+
+echo "$(date '+%H:%M:%S') watchdog started for $CODESPACE port $PORT (interval ${INTERVAL}s)" >> "$LOG"
+
+while true; do
+  CODE=$(curl -s -m 3 -o /dev/null -w "%{http_code}" "http://localhost:${PORT}" || echo "000")
+  if [[ ! "$CODE" =~ ^[23] ]]; then
+    echo "$(date '+%H:%M:%S') localhost:${PORT} returned '$CODE' — restarting forward" >> "$LOG"
+    pkill -f "gh codespace ports forward ${PORT}:${PORT}.*${CODESPACE}" 2>/dev/null
+    sleep 1
+    nohup gh codespace ports forward "${PORT}:${PORT}" -c "$CODESPACE" \
+      > /tmp/codespace-port-forward.log 2>&1 &
+  fi
+  sleep "$INTERVAL"
+done
+WATCHDOG_EOF
+chmod +x /tmp/codespace-port-watchdog.sh
+```
+
+Kill any prior watchdog for this codespace+port, then start a fresh one:
+
+```bash
+pkill -f "codespace-port-watchdog.sh.*CODESPACE_NAME.*PORT" 2>/dev/null
+nohup /tmp/codespace-port-watchdog.sh CODESPACE_NAME PORT > /dev/null 2>&1 &
+sleep 2 && tail -3 /tmp/codespace-port-watchdog.log
+```
+
+The watchdog probes `http://localhost:PORT` every 15s. If the response is non-2xx/3xx (or the curl times out), it kills the dead forward and starts a fresh one. Restarts are logged to `/tmp/codespace-port-watchdog.log`.
+
+**Multiple ports:** start one watchdog per forwarded port (each watches its own `localhost:PORT`).
+
 #### Step 6: Confirm
 
 Output a summary:
@@ -207,6 +262,7 @@ Codespace dev server running:
 - Branch: <branch>
 - URL: http://localhost:<port>
 - Logs: ssh into codespace and `tail -f /tmp/<app>-dev.log`
+- Port-forward watchdog: tail -f /tmp/codespace-port-watchdog.log
 ```
 
 ### Mode: stop
@@ -215,6 +271,7 @@ Kill everything — local port forwards, codespace dev servers.
 
 ```bash
 # Local
+pkill -f "codespace-port-watchdog.sh.*CODESPACE_NAME" 2>/dev/null || true
 pkill -f "gh codespace ssh.*CODESPACE_NAME" 2>/dev/null || true
 pkill -f "gh codespace ports forward.*CODESPACE_NAME" 2>/dev/null || true
 
@@ -222,7 +279,7 @@ pkill -f "gh codespace ports forward.*CODESPACE_NAME" 2>/dev/null || true
 gh codespace ssh -c CODESPACE_NAME -- bash -c \
   'ps aux | grep -E "next-server|turbo.*dev|pnpm.*dev" | grep -v grep | awk "{print \$2}" | xargs -r kill -9 2>/dev/null; \
    fuser -k 3000/tcp 3001/tcp 3002/tcp 2>/dev/null; \
-   rm -f REPO_DIR/apps/dashboard/.next/dev/lock REPO_DIR/apps/admin/.next/dev/lock REPO_DIR/apps/forms/.next/dev/lock; \
+   rm -f REPO_DIR/apps/*/.next/dev/lock; \
    echo ok'
 ```
 
@@ -285,7 +342,7 @@ gh codespace ssh -c CODESPACE_NAME -- tail -50 /tmp/APP-dev.log
 **Missing `.env.local` on codespace:**
 - Apps that need env vars (e.g., background-worker needs API keys) will fail without `.env.local`.
 - Copy from local: `cat /path/to/.env | gh codespace ssh -c CODESPACE_NAME -- "cat > REPO_DIR/.env.local"`
-- Or run `pnpm script:run pull-secrets` on the codespace if Infisical is configured there.
+- Or run your team's secret-pull script on the codespace if a secrets manager (e.g. Infisical) is configured there. <!-- CUSTOMIZE: your equivalent of `pnpm run pull-secrets`. -->
 
 **App not in config (`pnpm dev:APP` not found):**
 - Not all apps have root-level scripts. Check `package.json` for available `dev:*` scripts.
@@ -309,8 +366,8 @@ gh codespace ssh -c CODESPACE_NAME -- tail -50 /tmp/APP-dev.log
 - Caused by: large monorepo on codespace filesystem exceeding inotify limits, stale daemon from previous session, or branch switches
 - Fix attempt 1: `npx turbo daemon clean` then retry
 - Fix attempt 2: `rm -rf ~/.turbo/daemon` then retry
-- Fix attempt 3 (reliable): **Bypass turbo entirely** - run Next.js directly: `cd REPO_DIR/apps/APP && pnpm with-env next dev`. You lose turbo caching but it always works.
-- When starting apps, prefer the direct `pnpm with-env next dev` approach on codespaces to avoid this class of issue entirely.
+- Fix attempt 3 (reliable): **Bypass turbo entirely** - run Next.js directly: `cd REPO_DIR/apps/APP && pnpm with-env next dev`. You lose turbo caching and internal-package auto-rebuild, but it always works.
+- **Default is `pnpm dev:APP:clean` through turbo** — the daemon issue is intermittent, and the `.next` corruption you get from running plain `next dev` long-term is worse than the occasional daemon hiccup. Fall back to direct `pnpm with-env next dev` only when turbo daemon is actively broken on the current session.
 
 **Turbopack cache corruption (panics with `inner_of_uppers_lost_follower`):**
 - Symptoms: Turbopack tokio-runtime-worker threads panic repeatedly, pages stuck compiling, high CPU
@@ -324,6 +381,39 @@ gh codespace ssh -c CODESPACE_NAME -- tail -50 /tmp/APP-dev.log
 - Fix: Same as above - nuke `.next` entirely: `rm -rf REPO_DIR/apps/APP/.next` then restart.
 - Prevention: Always nuke `.next` after switching branches on the codespace. Add this to Step 3 (sync) when the branch changes.
 
+**Escaping the slow codespace filesystem for `.next/dev` (experimental):**
+- Symptoms: Repeated `Finished filesystem cache database compaction in 11-29s` lines in the dashboard dev log, making first-render and HMR painful. The slow-fs cost lands hardest on Turbopack's `.next/dev` cache directory.
+- The temptation: symlink `.next/dev` into `/tmp` (tmpfs) — much faster than the overlay fs the codespace mounts at `/workspaces`.
+- **DON'T use `ln -s` for this.** `ln -sfn /tmp/next-dev .next/dev` boots, but Sentry's instrumentation hook crashes at module evaluation: `Cannot find module 'require-in-the-middle-...'` with stack pointing at `/tmp/next-dev/server/chunks/..._sentry_node-core...`. Root cause: Node's `Module._resolveFilename` + Sentry's `require-in-the-middle` patching don't follow symlinks correctly when the instrumented module sits behind one. Reverting the symlink restores the baseline. **Also don't combine the symlink with flipping `turbopackFileSystemCacheForDev: false` in `next.config.ts` — both halves were originally flipped together; we now know the symlink alone is the broken half, but neither has been validated as a perf win yet.**
+- **Bind-mount works** (verified empirically on a live codespace). Node can't tell a bind-mount from a real dir, so Sentry's resolver is happy:
+  ```bash
+  cd REPO_DIR/apps/APP
+  [ -e .next/dev ] && [ ! -L .next/dev ] && mv .next/dev .next/dev.bak
+  mkdir -p /tmp/next-dev .next/dev
+  sudo mount --bind /tmp/next-dev .next/dev
+  ```
+  Verify: `mount | grep next/dev` shows the bind line, then `pnpm with-env next dev` boots in ~300ms with no Sentry crash. Keep `turbopackFileSystemCacheForDev: true` (default) — don't touch it.
+- Caveats before wiring this in permanently:
+  - Bind-mount needs `sudo` and doesn't survive a codespace rebuild — would need a `postStartCommand` hook in `.devcontainer/devcontainer.json` to persist.
+  - **Perf win is unverified.** Bind-mount stops the Sentry crash, but we haven't measured cold/warm request time vs baseline or counted the `filesystem cache database compaction` lines after 5 min of activity. Run those measurements before recommending this to anyone.
+- Revert: `sudo umount .next/dev && rmdir .next/dev && mv .next/dev.bak .next/dev`.
+
+**Dashboard / dev server feels sluggish after long uptime (kill-and-restart heuristic):**
+- Symptoms: HMR is slow, first-page renders take 10+ seconds, frequent `Finished filesystem cache database compaction` lines in the log, but the codespace itself is healthy (RAM free, low CPU load, `.next/dev` looks normal — not a symlink, not a mount). No obvious config or branch change explains it.
+- Cause: long-running `next-server` drifts. In-memory caches, Turbopack workers, tokio runtime state, and stale daemon connections accumulate over hours of HMR cycles, especially across branch switches or many route changes.
+- **Default fix when in doubt: kill the dev server(s) and restart.** Don't burn time diagnosing further — kill-and-restart often beats deep investigation here, and it's reversible / cheap.
+  ```bash
+  # Kill everything dev-related on the codespace, then start the app you actually need
+  gh codespace ssh -c CODESPACE_NAME -- bash -c \
+    'ps aux | grep -E "next-server|turbo.*dev|tsx.*agent|pnpm.*dev" | grep -v grep | awk "{print \$2}" | xargs -r kill -9 2>/dev/null; \
+     fuser -k 3000/tcp 3001/tcp 3002/tcp 2>/dev/null; \
+     rm -f REPO_DIR/apps/*/.next/dev/lock; \
+     echo cleaned'
+  # Then start fresh — see "Step 4: Start dev server" above
+  ```
+- Evidence: observed in practice during a QA session - a dev server that had been running ~6 hours felt sluggish to the user testing on a real device. Killing and restarting restored fast renders and dropped compaction-line frequency to a handful of lines per hour. No config change applied - the restart alone was the fix.
+- Apply this BEFORE assuming you need a deeper tweak (bind-mount escape, daemon clean, etc.). If the slowness persists after a fresh restart, then dig in.
+
 **File watching lag warnings on codespace:**
 - `WARNING: lagged behind N processing file watching events` and `encountered filewatching error, flushing all globs` are normal on codespaces with large repos. Not actionable - just noise from the filesystem watcher struggling with the repo size.
 
@@ -331,9 +421,10 @@ gh codespace ssh -c CODESPACE_NAME -- tail -50 /tmp/APP-dev.log
 - After pulling a new branch, always run `pnpm install --frozen-lockfile` before starting apps. Missing deps cause cryptic module-not-found errors during compile (e.g., `Can't resolve 'html-minifier-terser'`).
 
 **Port forward dies silently:**
-- The `nohup gh codespace ports forward` process can die without warning (e.g., after codespace restart or SSH reconnect).
-- Always verify port forward is alive before telling the user the app is ready: `ps aux | grep "gh codespace ports forward" | grep -v grep`
-- If dead, restart it.
+- The `nohup gh codespace ports forward` process can die without warning (e.g., after codespace restart or SSH reconnect, or unprompted while the codespace stays `Available`).
+- Even when the OS process is alive, the tunnel itself can be dead — `curl http://localhost:PORT` returning empty is the canonical symptom.
+- **Always start the watchdog (Step 5b)** — it probes `localhost:PORT` and auto-restarts the forward when it dies. Without the watchdog, the user will hit "site unreachable" mid-test.
+- If the user reports the dashboard is unreachable: `tail /tmp/codespace-port-watchdog.log` to see if the watchdog is running and how many restarts have occurred. If the watchdog is dead, restart it (Step 5b).
 
 **Duplicate port forward processes cause connection failures:**
 - If you restart port forwarding without killing the old process first, two instances compete on the same local port. This causes intermittent connection failures or hangs.
@@ -352,3 +443,5 @@ gh codespace ssh -c CODESPACE_NAME -- tail -50 /tmp/APP-dev.log
 9. **Verify after starting** — always check logs and process list to confirm the app is healthy, not just that it launched
 10. **Handle apps not in config** — fall back to `pnpm dev` from the app directory if no root-level script exists
 11. **Always re-forward ports after restarting an app** — restarting a dev server kills the port forward; always re-run `nohup gh codespace ports forward ...` after any restart
+12. **Always start the port-forward watchdog (Step 5b) after any forward** — the tunnel dies silently with no log line; the watchdog is the only thing that keeps the user's session usable across the typical 30+ minute idle/reconnect events
+13. **Always kill the watchdog in stop mode** — leftover watchdogs will keep resurrecting forwards after the user thought they shut everything down
