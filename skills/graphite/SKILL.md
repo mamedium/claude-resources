@@ -79,7 +79,7 @@ gh pr ready <pr-number> --undo   # converts to draft
 | "restructure stack" / "split stack" | See [Stack Sizing & Restructure](#stack-sizing--restructure) below |
 | "fold stack" / "collapse stack" | See [Fold Stack](#fold-stack) below |
 
-**Heads-up**: a PreToolUse hook (`~/.claude/scripts/hooks/gt-submit-sizing.js`) intercepts every `gt submit` and runs the analyser. If a PR in the stack breaches the hard size limit, the submit is blocked. See the section below for thresholds, the mechanical-change escape hatch, and the override flow.
+**Heads-up**: if your team enforces stack-size limits via hooks, a PreToolUse hook can intercept every `gt submit` and run the analyser. If a PR in the stack breaches the hard size limit, the submit is blocked. See the section below for thresholds, the mechanical-change escape hatch, and the override flow.
 
 ## Commands
 
@@ -245,30 +245,33 @@ gt submit --no-interactive --stack --draft
 
 When submitting PRs, Graphite auto-generates descriptions from commit messages. To customize:
 
+<!-- CUSTOMIZE: swap in your team's PR title convention, e.g. "type(scope): lowercase description [ENG-123]". -->
+
 ```bash
 gt submit --no-interactive --draft \
-  --title "feat(expo): Phase 0 - Foundation (ENG-262)" \
+  --title "feat(mobile): phase 0 foundation [ENG-123]" \
   --body "$(cat <<'BODY'
 ## Summary
-Foundation layer for mobile field technician experience.
+Foundation layer for the new mobile experience.
 
 ## Changes
 - Restructured tab navigation to 5 tabs
 - Added shared reusable components
-- Extended theme with invoice/quote status colors
+- Extended theme with new status colors
 
 ## Test plan
-- Typecheck passes: `pnpm typecheck --filter expo-app`
-- Biome passes: `npx biome check`
+- Typecheck passes: `pnpm typecheck --filter <app>`
+- Lint passes: `npx biome check`
 BODY
 )"
 ```
 
 ## Trunk Configuration
 
-This repo uses `dev` as trunk:
+<!-- CUSTOMIZE: set your repo's trunk branch (e.g. `main` or `dev`). -->
+
 ```bash
-gt init --trunk dev
+gt init --trunk main
 ```
 
 ## Tips
@@ -345,7 +348,7 @@ gt submit --no-interactive --publish
 
 ### Gotchas
 
-- **Branch name**: without `--keep`, folding always keeps the parent's name. After folding the whole stack you end up on the base branch (e.g. `user/eng-649`). Use `--keep` on the first fold if you want to preserve the tip branch name.
+- **Branch name**: without `--keep`, folding always keeps the parent's name. After folding the whole stack you end up on the base branch (e.g. `user/eng-123`). Use `--keep` on the first fold if you want to preserve the tip branch name.
 - **Draft PRs skip CI**: this repo's CI only runs on ready-for-review PRs. After fold + submit, use `--publish` to trigger CI, then `gh pr ready <num> --undo` to convert back to draft if needed.
 - **Codex re-reviews**: folding triggers a new Codex review on the combined diff. Comments are likely repeats of already-triaged items from individual PRs - triage before acting.
 
@@ -378,7 +381,9 @@ git branch -D $(git branch | grep 'backup/')
 
 ## Stack Sizing & Restructure
 
-Stack PRs are size-checked before every `gt submit` by a PreToolUse hook. The hook runs `analyse.py stack`, blocks on hard breach, and lets soft warnings through with a printed warning. See `~/.claude/CLAUDE.md` for the full sizing rule.
+<!-- CUSTOMIZE: if your team enforces stack-size limits via hooks, wire a PreToolUse hook on `gt submit` to run `analyse.py stack`. Without a hook, run `analyse.py stack` manually before submitting. -->
+
+If your team enforces stack-size limits via hooks, stack PRs are size-checked before every `gt submit` by a PreToolUse hook. The hook runs `analyse.py stack`, blocks on hard breach, and lets soft warnings through with a printed warning. Without a hook, run `analyse.py stack` manually before submitting and apply the same thresholds.
 
 ### Thresholds
 
@@ -411,7 +416,7 @@ The trailer survives restacks and is reviewable in `git log`. Thresholds become 
 1. **Before any mutation** — `python3 ~/.claude/skills/graphite/scripts/verify-tree.py snapshot`
    - Records tree SHAs for every branch in the stack
    - Tags HEAD as `backup/pre-restructure-<timestamp>` for rollback
-   - Writes a `pending` marker — the gt-submit-sizing hook will BLOCK `gt submit` until verify passes
+   - Writes a `pending` marker - if you use a submit-sizing hook, it will BLOCK `gt submit` until verify passes
 2. **After all restructure ops, before `gt submit`** — `python3 ~/.claude/skills/graphite/scripts/verify-tree.py verify`
    - Recomputes the tip tree SHA and compares to the recorded original
    - On match: prints `CONTENT PRESERVED`, flips the marker to `passed`, unblocks submit
@@ -430,7 +435,7 @@ python3 ~/.claude/skills/graphite/scripts/verify-tree.py verify --accept-drift "
 ```
 The reason is written into the marker file for the audit trail.
 
-**Hook integration**: `~/.claude/scripts/hooks/gt-submit-sizing.js` calls `verify-tree.py hook-check` before the size check. If the most recent snapshot (within 6 hours) is `pending` or `failed`, submit is blocked with a hard exit.
+**Hook integration**: <!-- CUSTOMIZE: if your team enforces stack-size limits via hooks, have your submit hook call `verify-tree.py hook-check` before the size check. --> a submit hook can call `verify-tree.py hook-check` before the size check. If the most recent snapshot (within 6 hours) is `pending` or `failed`, submit is blocked with a hard exit.
 
 ### Subcommands (analyse.py)
 
@@ -449,7 +454,7 @@ When the hook blocks a `gt submit` (or whenever a stack feels too big to review)
 
 1. **Snapshot (bundle)** — `python3 ~/.claude/skills/graphite/scripts/analyse.py snapshot`. Always first. Captures `git bundle` + all four Graphite metadata files. The backup includes a `restore.sh` you can run if anything goes wrong.
 
-2. **Snapshot (tree hashes)** — `python3 ~/.claude/skills/graphite/scripts/verify-tree.py snapshot`. Records tree SHAs for every branch and writes a `pending` marker. The gt-submit-sizing hook will now BLOCK `gt submit` until step 7 passes. See [Content integrity guardrail](#content-integrity-guardrail-verify-treepy) for the rationale.
+2. **Snapshot (tree hashes)** — `python3 ~/.claude/skills/graphite/scripts/verify-tree.py snapshot`. Records tree SHAs for every branch and writes a `pending` marker. If you use a submit-sizing hook, it will now BLOCK `gt submit` until step 7 passes. See [Content integrity guardrail](#content-integrity-guardrail-verify-treepy) for the rationale.
 
 3. **Analyse** — `python3 ~/.claude/skills/graphite/scripts/analyse.py stack`. Confirms which PRs breach the hard limit and which are soft.
 
@@ -479,7 +484,51 @@ The override is **per-commit** (tied to HEAD SHA), so it doesn't persist across 
 
 ### Why this exists
 
-Reviewers tap out at ~1000-line PRs. The historical ENG-649 stack produced two such PRs (#3330 at 1003 additions, #3332 at 1071) even after a manual restructure. The hook + restructure subcommand prevent that recurring without manual vigilance. See `~/.claude/plans/precious-foraging-church.md` for the design rationale.
+Reviewers tap out at ~1000-line PRs. Without enforcement, large stacks routinely produce 1000+ line PRs even after a manual restructure. The size check + restructure subcommand prevent that recurring without manual vigilance.
+
+## Cleaning up closed PRs that still clutter the stack view
+
+When a PR is closed (e.g. commits folded into a later stack entry) but Graphite's web UI still renders it stacked above your active branch, the fix is to re-register it as a standalone stack on trunk, then re-close. The web UI reflects Graphite cloud state, which is only updated by `gt submit` - editing `.git/.graphite_metadata.db` locally does not propagate.
+
+### When to use this
+
+- Graphite web UI shows a closed PR sitting on top of your active stack
+- `gh pr edit --base <trunk>` already ran but the web UI still groups it with the stack
+- You already folded the commits into another PR, so you do NOT want to reopen for re-merge - this is purely a cleanup pass
+
+### Procedure (per closed PR)
+
+```bash
+# 1. If the local branch was deleted, recreate at the original SHA from PR metadata
+gh pr view <PR> --json headRefOid -q .headRefOid           # grab SHA
+git branch <branch-name> <sha>                              # recreate local branch
+git push origin <branch-name>                               # push back to remote
+
+# 2. Reopen the PR so `gt submit` will accept it
+gh pr reopen <PR>
+
+# 3. Checkout and submit as a standalone on trunk
+git checkout <branch-name>
+gt submit --no-interactive --draft                          # Graphite cloud marks it standalone
+
+# 4. Close the PR again with a cleanup-only comment
+gh pr close <PR> --comment "Re-closed after re-registering as standalone Graphite stack on trunk - cleanup only."
+
+# 5. Return to your working branch
+git checkout <working-branch>
+```
+
+### Prerequisites and gotchas
+
+- The original commit SHA must still exist in your local git object DB. Run `git cat-file -e <sha>` to verify before `git branch`. If missing, you cannot recreate the branch.
+- Set `parent_branch_name='<trunk>'` in `.git/.graphite_metadata.db` before `gt submit` so Graphite treats it as standalone rather than inferring the old parent:
+  ```bash
+  sqlite3 .git/.graphite_metadata.db "UPDATE branch_metadata SET parent_branch_name='<trunk>' WHERE branch_name='<branch-name>';"
+  ```
+- Back up the DB first: `cp .git/.graphite_metadata.db .git/.graphite_metadata.db.bak`
+- `gt ls` may still render the branch duplicated or alongside the active stack afterwards - that's a CLI display quirk from git-ancestry inference, not a real regression. The web UI is the source of truth.
+- Do not delete the branches after closing unless the user asks. Leaving them in place lets you repeat the cleanup later if needed.
+- Never batch with `--force` or `--stack` submit flags - one branch at a time, reopen -> submit -> close, so a failure on PR 2 doesn't leave PR 3 in a half-registered state.
 
 ## Troubleshooting
 
